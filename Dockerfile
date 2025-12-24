@@ -58,8 +58,7 @@ COPY --chown=appuser:appgroup static/ ${APP_HOME}/static/
 COPY --chown=appuser:appgroup manage.py ${APP_HOME}/
 
 # Copy startup script
-COPY --chown=appuser:appgroup scripts/start.sh /start.sh
-RUN chmod +x /start.sh
+COPY --chown=appuser:appgroup scripts/start.py /start.py
 
 # Fix nginx permissions for non-root user
 RUN touch /tmp/nginx.pid \
@@ -80,4 +79,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENTRYPOINT ["/tini", "--"]
 
 # Start the application
-CMD ["/start.sh"]
+CMD ["python", "/start.py"]
