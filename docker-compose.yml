@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      - DJANGO_SECRET_KEY=your-secret-key-change-in-production
+      - DJANGO_DEBUG=False
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+      - GUNICORN_WORKERS=2
+      - GUNICORN_THREADS=4
+    volumes:
+      # Persist media files
+      - media_data:/app/media
+      # Persist SQLite database (for development)
+      - db_data:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  media_data:
+  db_data:

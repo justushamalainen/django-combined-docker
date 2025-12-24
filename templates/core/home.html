@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="info-box">
+    <h2>Setup Overview</h2>
+    <ul>
+        <li><strong>Tini</strong> - Minimal init system for containers (PID 1)</li>
+        <li><strong>Nginx</strong> - Reverse proxy, static/media file serving (single worker mode)</li>
+        <li><strong>Gunicorn</strong> - WSGI HTTP Server for Django</li>
+        <li><strong>Django</strong> - Python web framework</li>
+    </ul>
+</div>
+
+<div class="info-box">
+    <h2>Test Endpoints</h2>
+    <ul>
+        <li><a href="/health/">/health/</a> - Health check endpoint (JSON)</li>
+        <li><a href="/upload/">/upload/</a> - File upload test (media files)</li>
+        <li><a href="/static/css/style.css">/static/css/style.css</a> - Static file test</li>
+        <li><a href="/admin/">/admin/</a> - Django Admin</li>
+    </ul>
+</div>
+
+<div class="info-box">
+    <h2>Static Files</h2>
+    <p>This page loads CSS from <code>/static/css/style.css</code> which is served directly by Nginx.</p>
+    <img src="/static/images/test.svg" alt="Test Image" style="max-width: 200px;">
+</div>
+{% endblock %}
