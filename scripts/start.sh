@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Django + Nginx + Gunicorn Startup Script
+# Django + Nginx + Gunicorn + Config API Startup Script
 # This script is designed to be run by tini as PID 1
 
 echo "=== Starting Django Application ==="
@@ -11,6 +11,10 @@ GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
 GUNICORN_THREADS=${GUNICORN_THREADS:-4}
 GUNICORN_BIND=${GUNICORN_BIND:-127.0.0.1:8000}
 GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-30}
+
+# Config API settings
+NGINX_CONFIG_API_PORT=${NGINX_CONFIG_API_PORT:-8081}
+ENABLE_CONFIG_API=${ENABLE_CONFIG_API:-true}
 
 # Wait for dependencies (if any)
 if [ -n "$WAIT_FOR_HOST" ] && [ -n "$WAIT_FOR_PORT" ]; then
@@ -29,8 +33,11 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Create media directory if it doesn't exist
+# Create required directories
 mkdir -p /app/media/uploads
+mkdir -p /var/lib/nginx-api
+mkdir -p /var/backups/nginx
+mkdir -p /etc/nginx/conf.d
 
 # Function to handle shutdown gracefully
 shutdown() {
@@ -47,12 +54,36 @@ shutdown() {
         wait "$GUNICORN_PID" 2>/dev/null || true
     fi
 
+    # Stop config API gracefully
+    if [ -n "$CONFIG_API_PID" ]; then
+        kill -TERM "$CONFIG_API_PID" 2>/dev/null || true
+        wait "$CONFIG_API_PID" 2>/dev/null || true
+    fi
+
     echo "Shutdown complete"
     exit 0
 }
 
 # Trap signals for graceful shutdown
 trap shutdown SIGTERM SIGINT SIGQUIT
+
+# Start Nginx Config API if enabled
+CONFIG_API_PID=""
+if [ "$ENABLE_CONFIG_API" = "true" ]; then
+    echo "Starting Nginx Config API on port $NGINX_CONFIG_API_PORT..."
+    python /app/scripts/nginx_config_api.py &
+    CONFIG_API_PID=$!
+
+    # Wait a moment for the API to start
+    sleep 1
+
+    if ! kill -0 "$CONFIG_API_PID" 2>/dev/null; then
+        echo "WARNING: Config API failed to start, continuing without it"
+        CONFIG_API_PID=""
+    else
+        echo "Config API started with PID $CONFIG_API_PID"
+    fi
+fi
 
 echo "Starting Gunicorn with $GUNICORN_WORKERS workers and $GUNICORN_THREADS threads..."
 
@@ -89,13 +120,40 @@ nginx -c /etc/nginx/nginx.conf &
 
 NGINX_PID=$!
 
+# Wait a moment for Nginx to start
+sleep 1
+
+if ! kill -0 "$NGINX_PID" 2>/dev/null; then
+    echo "ERROR: Nginx failed to start"
+    exit 1
+fi
+
 echo "Nginx started with PID $NGINX_PID"
+echo ""
 echo "=== Application Ready ==="
 echo "  - Nginx listening on port 80"
 echo "  - Gunicorn listening on $GUNICORN_BIND"
+if [ -n "$CONFIG_API_PID" ]; then
+    echo "  - Config API listening on port $NGINX_CONFIG_API_PORT"
+    echo "  - Config API available at /api/nginx/"
+    echo ""
+    echo "Dynamic Backend API endpoints:"
+    echo "  GET    /api/nginx/routes          - List all routes"
+    echo "  POST   /api/nginx/routes          - Add/update route"
+    echo "  DELETE /api/nginx/routes/<path>   - Delete route"
+    echo "  GET    /api/nginx/config/preview  - Preview config"
+    echo "  POST   /api/nginx/config/reload   - Force reload"
+fi
+echo ""
 
-# Wait for either process to exit
-wait -n "$GUNICORN_PID" "$NGINX_PID"
+# Build list of PIDs to wait for
+PIDS="$GUNICORN_PID $NGINX_PID"
+if [ -n "$CONFIG_API_PID" ]; then
+    PIDS="$PIDS $CONFIG_API_PID"
+fi
+
+# Wait for any process to exit
+wait -n $PIDS
 
 # If we get here, one of the processes died
 echo "ERROR: One of the processes exited unexpectedly"
