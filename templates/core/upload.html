@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Test{% endblock %}
+
+{% block content %}
+<h1>File Upload Test</h1>
+
+<p>Upload a file to test the media file handling via Nginx.</p>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+        <label for="file">Select a file:</label>
+        <input type="file" name="file" id="file" required>
+    </div>
+    <button type="submit">Upload</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+document.querySelector('form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('/upload/', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            document.getElementById('result').innerHTML = `
+                <div class="info-box">
+                    <h3>Upload Successful!</h3>
+                    <p>File URL: <a href="${data.file_url}">${data.file_url}</a></p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('result').innerHTML = `
+            <div class="error-box">Error: ${error.message}</div>
+        `;
+    }
+});
+</script>
+{% endblock %}
